@@ -1,4 +1,4 @@
-import string, nltk
+import string,nltk,re
 
 def read_file(filename):
     r"""Assume the file is the format
@@ -42,14 +42,14 @@ def extract_features_for_sentence2(tokens):
         if "NNP" in PoS[t] or "NNPS" in PoS[t]:
             tag="B"
         if tag=="B":
-            #if containsSymbol(w):
-            #    tag="O"
+            if containsSymbol(w):
+                tag="O"
             if isMonth(w):
                 tag="O"
         feats_per_position[t].add("%s\tword=%s" %(tag,w))
     return feats_per_position
-#def containsSymbol(word):
-
+def containsSymbol(word):
+    return re.match("^[\w]+$",word) is None
 def isMonth(word):
     months={
         #"jan":True,
