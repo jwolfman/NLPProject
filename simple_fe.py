@@ -39,6 +39,7 @@ def extract_features_for_sentence2(tokens):
     readNames=csv.reader(open("CSV_Database_of_First_Names.csv").read())
     names=[]
     holder=""
+    tags=[]
     for n in readNames:
         if n==[]:
             names.append(holder)
@@ -55,16 +56,24 @@ def extract_features_for_sentence2(tokens):
                 tag="O"
             if isMonth(w):
                 tag="O"
+            if w is "I" or w is "RT":
+                tag="O"
         if tag=="O":
             if isCountry(w):
                 tag="B"
             if isName(w,names):
                 tag="B"
+            if isState(w):
+                tag="b"
+        if tag=="B" and t>0:
+            if tags[t-1]=="B"or tags[t-1]=="I":
+                tag="I"
         feats_per_position[t].add("%s\tword=%s" %(tag,w))
+        tags.append(tag)
     return feats_per_position
 def isName(word, names):
     if word.lower() is not "firstname" and word.lower() in names:
-        if word.lower() is not "in" or word.lower() is not "an":
+        if word.lower() is not "in" or word.lower() is not "an" or word is not "ward" or word is not "mark":
             return True
     return False
 def isCountry(word):
@@ -572,6 +581,116 @@ def isMonth(word):
     }
     if word.lower() in months:
         return True
+    return False
+def isState(word):
+    states={
+        "AK",
+        "Alaska",
+        "AL",
+        "Alabama",
+        "AR",
+        "Arkansas",
+        "AZ",
+        "Arizona",
+        "CA",
+        "California",
+        "CO",
+        "Colorado",
+        "CT",
+        "Connecticut",
+        "DC",
+        "District Of Columbia",
+        "DE",
+        "Delaware",
+        "FL",
+        "Florida",
+        "GA",
+        "Georgia",
+        "HI",
+        "Hawaii",
+        "IA",
+        "Iowa",
+        "ID",
+        "Idaho",
+        "IL",
+        "Illinois",
+        "IN",
+        "Indiana",
+        "KS",
+        "Kansas",
+        "KY",
+        "Kentucky",
+        "LA",
+        "Louisiana",
+        "MA",
+        "Massachusetts",
+        "MD",
+        "Maryland",
+        "ME",
+        "Maine",
+        "MI",
+        "Michigan",
+        "MN",
+        "Minnesota",
+        "MO",
+        "Missouri",
+        "MS",
+        "Mississippi",
+        "MT",
+        "Montana",
+        "NC",
+        "North Carolina",
+        "ND",
+        "North Dakota",
+        "NE",
+        "Nebraska",
+        "NH",
+        "New Hampshire",
+        "NJ",
+        "New Jersey",
+        "NM",
+        "New Mexico",
+        "NV",
+        "Nevada",
+        "NY",
+        "New York",
+        "OH",
+        "Ohio",
+        "OK",
+        "Oklahoma",
+        "OR",
+        "Oregon",
+        "PA",
+        "Pennsylvania",
+        "RI",
+        "Rhode Island",
+        "SC",
+        "South Carolina",
+        "SD",
+        "South Dakota",
+        "TN",
+        "Tennessee",
+        "TX",
+        "Texas",
+        "UT",
+        "Utah",
+        "VA",
+        "Virginia",
+        "VT",
+        "Vermont",
+        "WA",
+        "Washington",
+        "WI",
+        "Wisconsin",
+        "WV",
+        "West Virginia",
+        "WY",
+        "Wyoming",
+    }
+    if word is not "ma" or word is not"ok" or word is not "or" or word is not "pa":
+        for s in states:
+            if word.lower()==s.lower():
+                return True
     return False
 
 extract_features_for_sentence = extract_features_for_sentence2
