@@ -1,4 +1,4 @@
-import string,nltk,re
+import string,nltk,re,csv
 
 def read_file(filename):
     r"""Assume the file is the format
@@ -36,6 +36,15 @@ def extract_features_for_sentence2(tokens):
     N = len(tokens)
     feats_per_position = [set() for i in range(N)]
     PoS=nltk.pos_tag(tokens)
+    readNames=csv.reader(open("CSV_Database_of_First_Names.csv").read())
+    names=[]
+    holder=""
+    for n in readNames:
+        if n==[]:
+            names.append(holder)
+            holder=""
+        else:
+            holder+=n[0].lower()
     for t in range(N):
         w = clean_str(tokens[t])
         tag="O"
@@ -49,8 +58,15 @@ def extract_features_for_sentence2(tokens):
         if tag=="O":
             if isCountry(w):
                 tag="B"
+            if isName(w,names):
+                tag="B"
         feats_per_position[t].add("%s\tword=%s" %(tag,w))
     return feats_per_position
+def isName(word, names):
+    if word.lower() is not "firstname" and word.lower() in names:
+        if word.lower() is not "in" or word.lower() is not "an":
+            return True
+    return False
 def isCountry(word):
     countries={
         "AD",
@@ -136,7 +152,7 @@ def isCountry(word):
         "CH",
         "SWITZERLAND"
         "CI",
-        "C�TE D'IVOIRE"
+        "COTE D'IVOIRE",
         "CK",
         "COOK ISLANDS",
         "CL",
@@ -408,7 +424,7 @@ def isCountry(word):
         "QA",
         "QATAR",
         "RE",
-        "R�UNION",
+        "REUNION",
         "RO",
         "ROMANIA",
         "RU",
@@ -524,7 +540,7 @@ def isCountry(word):
         "ZW",
         "ZIMBABWE",
     }
-    if word in countries:
+    if word.upper() in countries:
         return True
     return False
 def containsSymbol(word):
