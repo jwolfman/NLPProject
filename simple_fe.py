@@ -51,12 +51,13 @@ def extract_features_for_sentence2(tokens):
         tag="O"
         if "NNP" in PoS[t] or "NNPS" in PoS[t]:
             tag="B"
+        tag=handleSymbol(w,tag)
         if tag=="B":
-            if containsSymbol(w):
-                tag="O"
             if isMonth(w):
                 tag="O"
             if w is "I" or w is "RT":
+                tag="O"
+            if isDay(w):
                 tag="O"
         if tag=="O":
             if isCountry(w):
@@ -64,7 +65,7 @@ def extract_features_for_sentence2(tokens):
             if isName(w,names):
                 tag="B"
             if isState(w):
-                tag="b"
+                tag="B"
         if tag=="B" and t>0:
             if tags[t-1]=="B"or tags[t-1]=="I":
                 tag="I"
@@ -73,7 +74,7 @@ def extract_features_for_sentence2(tokens):
     return feats_per_position
 def isName(word, names):
     if word.lower() is not "firstname" and word.lower() in names:
-        if word.lower() is not "in" or word.lower() is not "an" or word is not "ward" or word is not "mark":
+        if word is not "in" and word is not "an" and word is not "ward" and word is not "mark" and word is not "my":
             return True
     return False
 def isCountry(word):
@@ -552,8 +553,25 @@ def isCountry(word):
     if word.upper() in countries:
         return True
     return False
-def containsSymbol(word):
-    return re.match("^[\w]+$",word) is None
+def handleSymbol(word,tag):
+    if re.match("^[\w]+$",word) is None:
+        if "#" in word:
+            if string.index(word,"#")==0 and tag=="B":
+                return "O"
+        if "@" in word:
+            if string.index(word,"@")==0 and tag=="B":
+                return "O"
+        if "-" in word:
+            PoS=nltk.pos_tag(string.replace(word,"-",""))
+            if "NNP" in PoS or "NNPS" in PoS:
+                return "B"
+        if "_" in word:
+            PoS=nltk.pos_tag(string.replace(word,"_",""))
+            if "NNP" in PoS or "NNPS" in PoS:
+                return "B"
+        if word=="=":
+            return "O"
+    return tag
 def isMonth(word):
     months={
         #"jan":True,
@@ -687,10 +705,30 @@ def isState(word):
         "WY",
         "Wyoming",
     }
-    if word is not "ma" or word is not"ok" or word is not "or" or word is not "pa":
+    if word is not "ma" and word is not"ok" and word is not "or" and word is not "pa" and word is not "me" and word is not "in" and word is not "oh":
         for s in states:
             if word.lower()==s.lower():
                 return True
+    return False
+def isDay(word):
+    days={
+        #"sun",
+        "sunday",
+        "mon",
+        "monday"
+        "tue",
+        "tuesday",
+        #"wed",
+        "wednesday",
+        "thu",
+        "thursday",
+        "fri",
+        "friday",
+        #"sat",
+        "saturday"
+    }
+    if word in days:
+        return True
     return False
 
 extract_features_for_sentence = extract_features_for_sentence2
@@ -707,5 +745,7 @@ def extract_features_for_file(input_file, output_file):
                 print>>output_fileobj, "%s" % (feats_tabsep)
             print>>output_fileobj, ""
 
+#learn=csv.DictReader(open("ml.csv"))
 extract_features_for_file("train.txt", "train.feats")
 extract_features_for_file("dev.txt", "dev.feats")
+#csv.DictWriter("ml.csv",learn)
