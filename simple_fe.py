@@ -65,7 +65,6 @@ def extract_features_for_sentence2(tokens):
         feats_per_position[t].add("isBaseballTeam=%s"%isName(w,baseballTeams))
         feats_per_position[t].add("isFootballTeam=%s"%isName(w,footballTeams))
         feats_per_position[t].add("isHockeyTeam=%s"%isName(w,hockeyTeams))
-        feats_per_position[t].add("isDisneyMovies=%s"%isName(w,disneyMovies))
         feats_per_position[t].add("isCity=%s"%isName(w,cityNames))
         feats_per_position[t].add("isState=%s"%isState(w))
         feats_per_position[t].add("allCaps=%s"%(w==w.upper()))
@@ -761,7 +760,6 @@ baseballTeams=readNames("baseballTeams.csv")
 cityNames=readNames("cities.csv")
 footballTeams=readNames("footballTeams.csv")
 hockeyTeams=readNames("hockeyTeams.csv")
-disneyMovies=readNames("disneyMovies.csv")
 #the learned patterns
 learn={}
 #retrive prior learning
