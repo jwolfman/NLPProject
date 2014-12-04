@@ -1,4 +1,4 @@
-import string,nltk,re,csv
+import string,nltk,re,csv,os
 
 def read_file(filename):
     r"""Assume the file is the format
@@ -36,42 +36,53 @@ def extract_features_for_sentence2(tokens):
     N = len(tokens)
     feats_per_position = [set() for i in range(N)]
     PoS=nltk.pos_tag(tokens)
-    readNames=csv.reader(open("CSV_Database_of_First_Names.csv").read())
+    for t in range(N):
+        w = clean_str(tokens[t])
+        feats_per_position[t].add("word=%s" %w)
+        feats_per_position[t].add("wordLowerCase=%s" %w.lower())
+        feats_per_position[t].add("wordUpperCase=%s" %w.upper())
+        for i in range(3):
+            if len(w)>i:
+                feats_per_position[t].add("%iChar=%s"%(i+1,w[i]))
+                feats_per_position[t].add("%iFromLastChar=%s"%(i,w[-(i+1)]))
+            else:
+                feats_per_position[t].add("%iChar=%s"%(i+1,""))
+                feats_per_position[t].add("%iFromLastChar=%s"%(i,""))
+        if "NNP" in PoS[t] or "NNPS" in PoS[t]:
+            feats_per_position[t].add("NLTKIsName=%s"%True)
+        else:
+            feats_per_position[t].add("NLTKIsName=%s"%False)
+        temp=handleSymbol(w)
+        feats_per_position[t].add("hasSymbol=%s"%temp[0])
+        feats_per_position[t].add("isHash=%s"%temp[1])
+        feats_per_position[t].add("isMention=%s"%temp[2])
+        feats_per_position[t].add("isMonth=%s"%isMonth(w))
+        feats_per_position[t].add("isDay=%s"%isDay(w))
+        feats_per_position[t].add("isCountry=%s"%isCountry(w))
+        feats_per_position[t].add("isName=%s"%isName(w,firstNames))
+        feats_per_position[t].add("isSurname=%s"%isName(w,surnames))
+        feats_per_position[t].add("isBasketballTeam=%s"%isName(w,basketballTeams))
+        feats_per_position[t].add("isBaseballTeam=%s"%isName(w,baseballTeams))
+        feats_per_position[t].add("isFootballTeam=%s"%isName(w,footballTeams))
+        feats_per_position[t].add("isHockeyTeam=%s"%isName(w,hockeyTeams))
+        feats_per_position[t].add("isDisneyMovies=%s"%isName(w,disneyMovies))
+        feats_per_position[t].add("isCity=%s"%isName(w,cityNames))
+        feats_per_position[t].add("isState=%s"%isState(w))
+        feats_per_position[t].add("allCaps=%s"%(w==w.upper()))
+        feats_per_position[t].add("noCaps=%s"%(w==w.lower()))
+        feats_per_position[t].add("capitalized=%s"%(w[0] in string.uppercase and w[1:len(w)-1]==w[1:len(w)-1].lower()))
+    return feats_per_position
+def readNames(file):
+    readNames=csv.reader(open(file).read())
     names=[]
     holder=""
-    tags=[]
     for n in readNames:
         if n==[]:
             names.append(holder)
             holder=""
         else:
             holder+=n[0].lower()
-    for t in range(N):
-        w = clean_str(tokens[t])
-        tag="O"
-        if "NNP" in PoS[t] or "NNPS" in PoS[t]:
-            tag="B"
-        tag=handleSymbol(w,tag)
-        if tag=="B":
-            if isMonth(w):
-                tag="O"
-            if w is "I" or w is "RT":
-                tag="O"
-            if isDay(w):
-                tag="O"
-        if tag=="O":
-            if isCountry(w):
-                tag="B"
-            if isName(w,names):
-                tag="B"
-            if isState(w):
-                tag="B"
-        if tag=="B" and t>0:
-            if tags[t-1]=="B"or tags[t-1]=="I":
-                tag="I"
-        feats_per_position[t].add("%s\tword=%s" %(tag,w))
-        tags.append(tag)
-    return feats_per_position
+    return names
 def isName(word, names):
     if word.lower() is not "firstname" and word.lower() in names:
         if word is not "in" and word is not "an" and word is not "ward" and word is not "mark" and word is not "my":
@@ -553,25 +564,22 @@ def isCountry(word):
     if word.upper() in countries:
         return True
     return False
-def handleSymbol(word,tag):
+def handleSymbol(word):
+    values=[False,False,False]
     if re.match("^[\w]+$",word) is None:
+        values[0]=True
         if "#" in word:
-            if string.index(word,"#")==0 and tag=="B":
-                return "O"
+            if string.find(word,"#")==0:
+                values[1]=True
         if "@" in word:
-            if string.index(word,"@")==0 and tag=="B":
-                return "O"
-        if "-" in word:
-            PoS=nltk.pos_tag(string.replace(word,"-",""))
+            if string.find(word,"@")==0:
+                values[2]=True
+        if "-" in word or "_" in word:
+            PoS=nltk.pos_tag(string.replace(string.replace(word,"_",""),"-",""))
             if "NNP" in PoS or "NNPS" in PoS:
-                return "B"
-        if "_" in word:
-            PoS=nltk.pos_tag(string.replace(word,"_",""))
-            if "NNP" in PoS or "NNPS" in PoS:
-                return "B"
-        if word=="=":
-            return "O"
-    return tag
+                i=i
+                #return "B"
+    return values
 def isMonth(word):
     months={
         #"jan":True,
@@ -742,10 +750,24 @@ def extract_features_for_file(input_file, output_file):
             feats = extract_features_for_sentence(tokens)
             for t in range(len(tokens)):
                 feats_tabsep = "\t".join(feats[t])
-                print>>output_fileobj, "%s" % (feats_tabsep)
+                print>>output_fileobj, "%s\t%s" % (goldtags[t],feats_tabsep)
             print>>output_fileobj, ""
 
-#learn=csv.DictReader(open("ml.csv"))
+#get the list of names
+firstNames=readNames("CSV_Database_of_First_Names.csv")
+surnames=readNames("CSV_Database_of_Last_Names.csv")
+basketballTeams=readNames("basketballTeams.csv")
+baseballTeams=readNames("baseballTeams.csv")
+cityNames=readNames("cities.csv")
+footballTeams=readNames("footballTeams.csv")
+hockeyTeams=readNames("hockeyTeams.csv")
+disneyMovies=readNames("disneyMovies.csv")
+#the learned patterns
+learn={}
+#retrive prior learning
+#if os.path.isFile("ml.csv"):
+#    learn=csv.DictReader(open("ml.csv"))
 extract_features_for_file("train.txt", "train.feats")
 extract_features_for_file("dev.txt", "dev.feats")
+#save most recent learning
 #csv.DictWriter("ml.csv",learn)
