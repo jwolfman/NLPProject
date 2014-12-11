@@ -1,4 +1,12 @@
-import string,nltk,re,csv,os
+import string,nltk,re,csv,multiprocessing,time,traceback
+#add textblob PoS tagger
+#must be installed using:
+#pip install -U textblob
+#
+#pip install -U textblob-aptagger
+#pip install -U git+https://github.com/sloria/textblob-aptagger.git@dev
+from textblob import TextBlob
+from textblob_aptagger import PerceptronTagger
 
 def read_file(filename):
     r"""Assume the file is the format
@@ -35,12 +43,22 @@ def extract_features_for_sentence1(tokens):
 def extract_features_for_sentence2(tokens):
     N = len(tokens)
     feats_per_position = [set() for i in range(N)]
-    PoS=nltk.pos_tag(tokens)
+    PoS=[]
+    print tokens
+    try:
+        PoS=nltk.pos_tag(tokens)
+    except UnicodeDecodeError:
+        for t in tokens:
+            try:
+                PoS.append(nltk.pos_tag(t))
+            except UnicodeDecodeError:
+                PoS.append(("",""))
     for t in range(N):
         w = clean_str(tokens[t])
         feats_per_position[t].add("word=%s" %w)
         feats_per_position[t].add("wordLowerCase=%s" %w.lower())
         feats_per_position[t].add("wordUpperCase=%s" %w.upper())
+        #blobPoS=TextBlob(w,pos_tagger=PerceptronTagger())
         for i in range(3):
             if len(w)>i:
                 feats_per_position[t].add("%iChar=%s"%(i+1,w[i]))
@@ -52,6 +70,24 @@ def extract_features_for_sentence2(tokens):
             feats_per_position[t].add("NLTKIsName=%s"%True)
         else:
             feats_per_position[t].add("NLTKIsName=%s"%False)
+        # language=""
+        # part=""
+        # try:
+        #     if len(w)>2:
+        #         language=blobPoS.detect_language()
+        #     part=blobPoS.tags
+        # except UnicodeDecodeError:
+        #     language=""
+        #     part=""
+        # if len(w)>2:
+        #     if language=="en":
+        #         feats_per_position[t].add("isEnglish=%s"%True)
+        #     else:
+        #         feats_per_position[t].add("isEnglish=%s"%False)
+        # if "NNP" in part or "NNPS" in part:
+        #     feats_per_position[t].add("textblobIsName=%s"%True)
+        # else:
+        #     feats_per_position[t].add("textblobIsName=%s"%False)
         temp=handleSymbol(w)
         feats_per_position[t].add("hasSymbol=%s"%temp[0])
         feats_per_position[t].add("isHash=%s"%temp[1])
@@ -84,9 +120,8 @@ def readNames(file):
             holder+=n[0].lower()
     return names
 def isName(word, names):
-    if word.lower() is not "firstname" and word.lower() in names:
-        if word is not "in" and word is not "an" and word is not "ward" and word is not "mark" and word is not "my":
-            return True
+    if word.lower() in names:
+        return True
     return False
 def isCountry(word):
     countries={
@@ -575,7 +610,11 @@ def handleSymbol(word):
             if string.find(word,"@")==0:
                 values[2]=True
         if "-" in word or "_" in word:
-            PoS=nltk.pos_tag(string.replace(string.replace(word,"_",""),"-",""))
+            PoS=[]
+            try:
+                PoS=nltk.pos_tag(string.replace(string.replace(word,"_",""),"-",""))
+            except UnicodeDecodeError:
+                PoS=[]
             if "NNP" in PoS or "NNPS" in PoS:
                 i=i
                 #return "B"
@@ -741,33 +780,104 @@ def isDay(word):
 
 extract_features_for_sentence = extract_features_for_sentence2
 
+def extractWorker(work_queue,done_queue,lock):
+    for tokens,goldtags in iter(work_queue.get,"STOP"):
+        lock.acquire()
+        feats=extract_features_for_sentence(tokens)
+        done_queue.put((tokens,goldtags,feats))
+        lock.release()
+    return True
+
 def extract_features_for_file(input_file, output_file):
     """This runs the feature extractor on input_file, and saves the output to
     output_file."""
     sents = read_file(input_file)
     with open(output_file,'w') as output_fileobj:
+        work_queue=multiprocessing.Queue()
+        done_queue=multiprocessing.Queue()
+        lock=multiprocessing.Lock()
+        processes=[]
         for tokens,goldtags in sents:
+        #    work_queue.put((tokens,goldtags))
             feats = extract_features_for_sentence(tokens)
             for t in range(len(tokens)):
                 feats_tabsep = "\t".join(feats[t])
                 print>>output_fileobj, "%s\t%s" % (goldtags[t],feats_tabsep)
             print>>output_fileobj, ""
+        return True
+        for i in range(multiprocessing.cpu_count()):
+            work_queue.put("STOP")
+            p=multiprocessing.Process(target=extractWorker,args=(work_queue,done_queue,lock))
+            p.start()
+            processes.append(p)
+        for p in processes:
+            while p.isAlive():
+                p.join()
+                p.terminate()
+                processes.remove(p)
+        done_queue.put("STOP")
+        for tokens,goldtags,feats in iter(done_queue.get,"STOP"):
+            for t in range(len(tokens)):
+                feats_tabsep="\t".join(feats[t])
+                print>>output_fileobj, "%s\t%s"%(goldtags[t],feats_tabsep)
+            print>>output_fileobj, ""
 
+
+def readWorker(work_queue,done_queue,lock):
+    for fileName in iter(work_queue.get,"STOP"):
+        names=readNames(fileName)
+        lock.acquire
+        done_queue.put((fileName,names))
+        lock.release
+    return True
+#prepare processes to read names
+files={
+    "CSV_Database_of_First_Names.csv",
+    "CSV_Database_of_Last_Names.csv",
+    "basketballTeams.csv",
+    "baseballTeams.csv",
+    "cities.csv",
+    "footballTeams.csv",
+    "hockeyTeams.csv",
+    "disneyMovies.csv"
+}
+work_queue=multiprocessing.Queue()
+done_queue=multiprocessing.Queue()
+processes=[]
+lock=multiprocessing.Lock()
+for fileName in files:
+    work_queue.put(fileName)
+#start processes
+for i in range(multiprocessing.cpu_count()):
+    work_queue.put("STOP")
+    p=multiprocessing.Process(target=readWorker,args=(work_queue,done_queue,lock))
+    #p.start()
+    processes.append(p)
+#ensure processes end
+for p in processes:
+    #time.sleep(2)
+    #p.terminate()
+    processes.remove(p)
+done_queue.put("STOP")
 #get the list of names
-firstNames=readNames("CSV_Database_of_First_Names.csv")
-surnames=readNames("CSV_Database_of_Last_Names.csv")
-basketballTeams=readNames("basketballTeams.csv")
-baseballTeams=readNames("baseballTeams.csv")
-cityNames=readNames("cities.csv")
-footballTeams=readNames("footballTeams.csv")
-hockeyTeams=readNames("hockeyTeams.csv")
-disneyMovies=readNames("disneyMovies.csv")
-#the learned patterns
-learn={}
-#retrive prior learning
-#if os.path.isFile("ml.csv"):
-#    learn=csv.DictReader(open("ml.csv"))
-extract_features_for_file("train.txt", "train.feats")
-extract_features_for_file("dev.txt", "dev.feats")
-#save most recent learning
-#csv.DictWriter("ml.csv",learn)
+for fileName in files:
+    names=readNames(fileName)
+    if fileName is "hockeyTeams.csv":
+        hockeyTeams=names
+    elif fileName is "baseballTeams.csv":
+        baseballTeams=names
+    elif fileName is "footballTeams.csv":
+        footballTeams=names
+    elif fileName is "disneyMovies.csv":
+        disneyMovies=names
+    elif fileName is "CSV_Database_of_Last_Names.csv":
+        surnames=names
+    elif fileName is "basketballTeams.csv":
+        basketballTeams=names
+    elif fileName is "cities.csv":
+        cityNames=names
+    else:
+        firstNames=names
+extract_features_for_file("test_withlabels.txt","test_withlabels.feats")
+#extract_features_for_file("train.txt", "train.feats")
+##extract_features_for_file("dev.txt", "dev.feats")
