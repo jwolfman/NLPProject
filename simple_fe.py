@@ -44,7 +44,6 @@ def extract_features_for_sentence2(tokens):
     N = len(tokens)
     feats_per_position = [set() for i in range(N)]
     PoS=[]
-    print tokens
     try:
         PoS=nltk.pos_tag(tokens)
     except UnicodeDecodeError:
@@ -880,4 +879,4 @@ for fileName in files:
         firstNames=names
 extract_features_for_file("test_withlabels.txt","test_withlabels.feats")
 #extract_features_for_file("train.txt", "train.feats")
-##extract_features_for_file("dev.txt", "dev.feats")
+extract_features_for_file("dev.txt", "dev.feats")
